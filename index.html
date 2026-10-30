@@ -117,6 +117,14 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 .listhead .seg button{flex:0 0 auto}
 .filter{display:flex;align-items:center;gap:6px;font-size:.85rem;font-weight:600;padding:5px 10px;border-radius:999px;background:var(--field);border:1px solid var(--line)}
 .list{display:flex;flex-direction:column;gap:14px}
+.searchbar{display:flex;align-items:center;gap:6px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:0 6px 0 12px}
+.searchbar:focus-within{border-color:var(--accent)}
+.searchbar .s-ico{color:var(--muted);font-size:1rem;flex:none}
+.searchbar input{flex:1;min-width:0;border:0;background:transparent;color:var(--ink);font:inherit;font-size:16px;padding:11px 0;outline:none;-webkit-appearance:none}
+.searchbar input::-webkit-search-cancel-button{display:none}
+.searchbar button{width:32px;height:32px;border-radius:50%;background:var(--field);color:var(--muted);font-size:1rem;flex:none}
+.sres{font-size:.9rem;color:var(--muted);padding:0 4px;display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.sres b{color:var(--ink);font-weight:600}
 .groups{display:flex;flex-direction:column;gap:10px}
 .day h3{margin:0 0 2px;font-size:.8rem;font-weight:600;color:var(--muted);display:flex;justify-content:space-between;padding:0 4px}
 .box{background:var(--card);border:1px solid var(--line);border-radius:18px;overflow:hidden}
@@ -260,6 +268,9 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 
   <div class="listhead"><h2>Harcamalar</h2><button class="filter" id="filterChip" hidden></button>
     <div class="seg" role="group" aria-label="Gruplama"><button type="button" id="gCat">Kategori</button><button type="button" id="gDay">Tarih</button></div></div>
+  <div class="searchbar" role="search"><span class="s-ico" aria-hidden="true">🔍</span>
+    <input type="search" id="q" placeholder="Tüm aylarda ara: Uber, Migros, 975…" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="search" aria-label="Harcama ara">
+    <button type="button" id="qx" aria-label="Aramayı temizle" hidden>×</button></div>
   <section class="list" id="list"></section>
 
   <section class="card" id="yearCard" hidden>
@@ -603,6 +614,40 @@ function renderByDay(items,list){
     const box=document.createElement("div");box.className="box";days[d].forEach(i=>box.append(itemRow(i,true)));
     sec.append(h,box);list.append(sec)});
 }
+/* Arama: tüm aylarda not, kategori, kart, tarih ve tutar */
+const fold=s=>String(s||"").toLocaleLowerCase("tr").replace(/ı/g,"i").normalize("NFD").replace(/[̀-ͯ]/g,"");
+function searchItems(q){
+  const words=fold(q).split(/\s+/).filter(Boolean);if(!words.length)return[];
+  const n=/^[\d.,]+$/.test(q.trim())?parseAmount(q.trim()):null;
+  return allItems().filter(i=>{
+    if(n!=null&&(Math.abs(i.amount-n)<0.005||Math.trunc(i.amount)===Math.trunc(n)))return true;
+    const hay=fold([i.note,i.cat,i.card,i.biz?"şirket":"şahsi",i.rec?"sabit":"",i.date.split("-").reverse().join("."),String(i.amount).replace(".",",")].join(" "));
+    return words.every(w=>hay.includes(w));
+  }).sort((a,b)=>b.date.localeCompare(a.date)||b.t-a.t);
+}
+function renderSearch(q,list){
+  const res=searchItems(q);
+  const head=document.createElement("div");head.className="sres";
+  head.innerHTML="<span></span><b class='num'></b>";
+  head.children[0].textContent=res.length?`${res.length} sonuç, tüm aylarda`:"";
+  head.children[1].textContent=res.length?fmt.format(sum(res)):"";
+  if(res.length)list.append(head);
+  if(!res.length){const e=document.createElement("div");e.className="empty";e.innerHTML="<b></b><span>Bu harcama defterde yok gibi görünüyor. Farklı yazımla ya da tutarla da dene.</span>";
+    e.querySelector("b").textContent=`“${q.trim()}” bulunamadı`;list.append(e);return}
+  const byM={};res.forEach(i=>(byM[i.date.slice(0,7)]=byM[i.date.slice(0,7)]||[]).push(i));
+  Object.keys(byM).sort().reverse().forEach(k=>{const [y,m]=k.split("-").map(Number);
+    const sec=document.createElement("div");sec.className="day";
+    const h=document.createElement("h3");h.innerHTML=`<span></span><span class="num"></span>`;
+    h.children[0].textContent=`${MONTHS[m-1]} ${y} · ${byM[k].length}`;h.children[1].textContent=fmt.format(sum(byM[k]));
+    const box=document.createElement("div");box.className="box";
+    byM[k].forEach(i=>{const r=itemRow(i,true);const d=document.createElement("span");d.textContent=i.date.split("-").reverse().join(".")+" ·";
+      r.querySelector(".n").prepend(d);box.append(r)});
+    sec.append(h,box);list.append(sec)});
+}
+$("q").addEventListener("input",()=>{$("qx").hidden=!$("q").value;render()});
+$("q").addEventListener("keydown",e=>{if(e.key==="Enter")$("q").blur()});
+$("qx").onclick=()=>{$("q").value="";$("qx").hidden=true;render();$("q").focus()};
+
 function renderYear(){
   const yr=viewKey.slice(0,4);const vals=MONTHS.map((_,ix)=>sum(months[`${yr}-${pad(ix+1)}`]||[]));
   const max=Math.max(...vals),withData=vals.filter(v=>v>0);$("yearCard").hidden=!withData.length;if(!withData.length)return;
@@ -665,7 +710,9 @@ function render(){
 
   const items=scoped.filter(i=>!filterCat||i.cat===filterCat).sort((a,b)=>b.date.localeCompare(a.date)||b.t-a.t);
   const list=$("list");list.innerHTML="";
-  if(!items.length){const e=document.createElement("div");e.className="empty";
+  const q=$("q").value;
+  if(q.trim())renderSearch(q,list);
+  else if(!items.length){const e=document.createElement("div");e.className="empty";
     e.innerHTML=db?(allItems().length?`<b>Bu ay için kayıt yok</b><span>Sağ alttaki + düğmesiyle ilkini gir.</span>`:`<b>Henüz kayıt yok</b><span>Sağ alttaki + ile ilk harcamanı gir. Eski kayıtların varsa yukarıdaki <b>Yedek</b>’ten yedek dosyanı yükle.</span>`):`<b>Harcamaların burada görünecek</b><span>Her ay ayrı tutulur, kategoriye göre gruplanır.</span>`;list.append(e)}
   else if(groupMode==="cat")renderByCat(items,list,sTotal);else renderByDay(items,list);
 
