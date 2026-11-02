@@ -615,12 +615,15 @@ async function pdfPages(lib,file){
     pages.push(rows.sort((a,b)=>b.y-a.y).map(r=>{r.items.sort((a,b)=>a.x-b.x);let line="",end=null;
       r.items.forEach(i=>{if(end!==null){const g=i.x-end;line+=g>12?"   ":g>1.5?" ":""}line+=i.s;end=i.x+i.w});return line}))}
   return pages}
+function lastKesims(){const k={};imports.forEach(m=>{if(!m.partial&&m.statementDate&&m.bank&&(!k[m.bank]||m.statementDate>k[m.bank]))k[m.bank]=m.statementDate});
+  allItems().forEach(i=>{const m=/^Kart faizi ve vergileri \((.+?)\)/.exec(i.note||"");if(m){const b=m[1]==="İş Bankası"||m[1]==="Maximiles"?"İş Bankası":m[1];if(!k[b]||i.date>k[b])k[b]=i.date}});return k}
+function cardNames(){const c={};imports.forEach(m=>Object.assign(c,m.digits||{}));return c}
 function catHistory(){const h={};allItems().slice().sort((a,b)=>(a.t||0)-(b.t||0)).forEach(i=>{if(i.note&&i.cat)h[EkstreOku.fold(i.note.replace(/\s*\(.*$/,""))]=i.cat});return h}
 $("ifile").addEventListener("change",async()=>{
   const f=$("ifile").files[0];if(!f)return;$("iErr").textContent="";$("iErr").className="err";
   if(/\.pdf$/i.test(f.name)||f.type==="application/pdf"){
     $("drop").hidden=true;$("iErr").className="err w";$("iErr").textContent="Ekstre okunuyor…";
-    try{const lib=await ensurePdf();const d=EkstreOku.parseStatement(await pdfPages(lib,f),{history:catHistory()});
+    try{const lib=await ensurePdf();const d=EkstreOku.parseStatement(await pdfPages(lib,f),{history:catHistory(),kesims:lastKesims(),cards:cardNames()});
       $("iErr").textContent="";$("iErr").className="err";
       if(d.error){iFail(d.error);return}showImport(d)}
     catch(e){$("iErr").className="err";iFail(e&&e.name==="PasswordException"?"Bu PDF şifreli. Bankanın uygulamasından şifresiz halini indir.":"PDF okunamadı. Bankanın uygulamasından indirdiğin ekstre PDF'ini seç.")}
@@ -692,7 +695,7 @@ $("iadd").onclick=()=>{
   const keys=Object.keys(byK).sort();keys.forEach(k=>{months[k]=[...(months[k]||[]),...byK[k]]});
   const logId=rid(),p=iData.period||{};
   imports=[...imports,{id:logId,bank:String(iData.bank||""),cards:[...new Set(iData.items.map(i=>i.card))],from:p.from||"",to:p.to||"",
-    statementDate:String(iData.statementDate||""),added:sel.length,total:Math.round(sel.reduce((s,i)=>s+i.amount,0)*100)/100,at:isoDay(new Date())}].slice(-200);
+    statementDate:String(iData.statementDate||""),digits:iData.digits&&typeof iData.digits==="object"?iData.digits:{},partial:!!iData.partial,added:sel.length,total:Math.round(sel.reduce((s,i)=>s+i.amount,0)*100)/100,at:isoDay(new Date())}].slice(-200);
   viewKey=keys[keys.length-1]>curKey?curKey:keys[keys.length-1];iData=null;closeSheets();render();
   keys.forEach(k=>queueWrite(()=>saveMonth(k)));queueWrite(saveImports);
   toast(`${sel.length} kayıt deftere eklendi`,()=>{keys.forEach(k=>{months[k]=(months[k]||[]).filter(i=>!ids.has(i.id))});imports=imports.filter(x=>x.id!==logId);render();keys.forEach(k=>queueWrite(()=>saveMonth(k)));queueWrite(saveImports)});
@@ -724,10 +727,10 @@ function matchExisting(items,period){
 }
 function findPrevImport(data,items){
   const p=data.period||{},cards=new Set(items.map(i=>i.card));
-  const hit=imports.find(m=>m.from&&p.from&&m.from<=(p.to||p.from)&&(m.to||m.from)>=p.from&&(m.bank===String(data.bank||"")||(m.cards||[]).some(c=>cards.has(c))));
+  const hit=imports.find(m=>!!m.partial===!!data.partial&&m.from&&p.from&&m.from<=(p.to||p.from)&&(m.to||m.from)>=p.from&&(m.bank===String(data.bank||"")||(m.cards||[]).some(c=>cards.has(c))));
   if(hit)return `${dmy(hit.at)} tarihinde, ${hit.added} kayıt`;
   const onCard=items.filter(i=>i.dup==="card").length;
-  if(items.length>=5&&onCard/items.length>=0.6)return "satırların çoğu bu karttan zaten defterde";
+  if(!data.partial&&items.length>=5&&onCard/items.length>=0.6)return "satırların çoğu bu karttan zaten defterde";
   return "";
 }
 

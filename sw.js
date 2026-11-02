@@ -1,5 +1,5 @@
 // Offline support: serve the app shell from cache, refresh it in the background when online.
-const CACHE = "harcama-v3";
+const CACHE = "harcama-v4";
 const FILES = ["./", "index.html", "manifest.webmanifest", "apple-touch-icon.png", "icon-192.png", "icon-512.png",
   "ekstre.js", "vendor/pdf.min.js", "vendor/pdf.worker.min.js"];
 self.addEventListener("install", e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES))); self.skipWaiting(); });

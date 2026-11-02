@@ -66,8 +66,8 @@
     [/AV MALZEME|SAVUNMA|STEAM|PLAYSTATION|SPOTIFY|EXXEN|NETFLIX|PATREON|WEMOD|POLIGON|SINEMA|PARIBU|YOUTUBE/, "Eğlence", null],
     [/HIGGSFIELD|WAVES|OPENAI|ANTHROPIC|ADOBE|CANVA|NOTION/, "İş", null],
     [/KUAFOR|BERBER|LOSTRA|KOZMETIK|SEPHORA|GRATIS|WATSONS/, "Bakım", null],
-    [/SGK|VERGI/, "Diğer", null],
-    [/AY MARKA|TRENDYOL|HEPSIBURADA|AMAZON|BEYMEN|ZARA|PRADA|STONE|LA VALLEE|INTIMISSIMI|LULULEMON|SUPERSTEP|DECATHLON|TEKNOSA|MEDIAMARKT|APPLE STORE|KUYUM|MAGAZA|TEKSTIL|TEKST|STORE|SHOPIER|BOYNER|MAVI|LC WAIKIKI|UNIFREE|DUTY FREE|OFFENDER|NARKONTEKS|ADESA|POLISSEPETI|CRAFTLABEL|KRAFTCOVER/, "Alışveriş", null],
+    [/V\.D\.|VERGI DAIRESI/, "Diğer", "Vergi ödemesi"], [/SGK|VERGI/, "Diğer", null],
+    [/AY MARKA|GURBUZ|GRBZ|TRENDYOL|HEPSIBURADA|AMAZON|BEYMEN|ZARA|PRADA|STONE|LA VALLEE|INTIMISSIMI|LULULEMON|SUPERSTEP|DECATHLON|TEKNOSA|MEDIAMARKT|APPLE STORE|KUYUM|MAGAZA|TEKSTIL|TEKST|STORE|SHOPIER|BOYNER|MAVI|LC WAIKIKI|UNIFREE|DUTY FREE|OFFENDER|NARKONTEKS|ADESA|POLISSEPETI|CRAFTLABEL|KRAFTCOVER/, "Alışveriş", null],
     [/LOKANTA|RESTORAN|RESTAURANT|OCAKBASI|KEBAP|KOFTE|DONER|BURGER|PIZZA|STEAKHOUSE|CAFE|KAFE|KAHVE|DONDURMA|BUFE|BALIK|CATERING|PASTANE|MIDPOINT|KANATCI|HAMSI|KASE NO|FINDIK OCAGI|SALONU|FIKO|HAMSIBURNU|AMBURNU|LILLO/, "Yemek", null],
     [/MARKET|GIDA|BAKKAL|CIFLIK|MANAV|KASAP|SARKUTERI|FIRINI|FIRIN|DENIZ URUN|GULMAR|GLMAR|KARMAR|^ER MAR|SECCO/, "Market", null],
   ];
@@ -98,10 +98,62 @@
     return { cat: h || "Diğer", note, unknown: !h };
   }
 
+  // QNB "Dönem İçi Hareketler" dökümü: ekstre kesilmeden önceki işlemler. Banka adı ve toplamlar yok.
+  function parseDonemIci(lines, opts) {
+    const all = lines.join("\n"), f = fold(all);
+    const last4 = (f.match(/SON 4 HANESI (\d{4})/) || [])[1] || "";
+    const dm = all.match(/(\d{2})[\/.](\d{2})[\/.](\d{4})\s+tarihli/i);
+    const docDate = dm ? iso(dm[1], dm[2], dm[3]) : null;
+    const isQnb = /DEME - TESEKK|TKPAY|QNB/.test(f);
+    const bank = isQnb ? "QNB" : "";
+    const card = (opts.cards && opts.cards[last4]) || (isQnb ? "QNB" : "Kart");
+    const MONEY = /^([+-]?\d+(?:\.\d{3})*(?:,\d{1,2})?)\s*(?:TRY|TL)$/;
+    const items = [], skipped = [], fees = [];
+    // Taksitlerin hangi aya düşeceği: bilinen son hesap kesiminden sonraki dönem; bilinmiyorsa dökümün ayı
+    const lastK = opts.kesims && opts.kesims[bank];
+    let win = null;
+    if (lastK && docDate) { let a = lastK; while (addMonths(a, 1) < docDate) a = addMonths(a, 1); win = { from: addDays(a, 1), to: addMonths(a, 1) }; }
+    for (const line of lines) {
+      const m = line.match(/^\s*(\d{2})[.\/](\d{2})[.\/](\d{4})\s+(.*)$/); if (!m) continue;
+      const date = iso(m[1], m[2], m[3]);
+      const toks = m[4].split(/\s{3,}/).map(t => t.trim()).filter(Boolean);
+      const ai = toks.findIndex((t, i) => i > 0 && MONEY.test(t)); if (ai < 1) continue;
+      const desc = toks.slice(0, ai).join(" ").replace(/^\d{8}\s+/, ""), fd = fold(desc);
+      const amount = r2(num(toks[ai].match(MONEY)[1], true));
+      if (/DEME - TESEKK|ODEMENIZ|HESAPTAN AKTARIM/.test(fd)) { skipped.push({ desc, amount: Math.abs(amount), reason: "kart borcu ödemesi" }); continue; }
+      if (/FAIZ|BSMV|KKDF/.test(fd)) { fees.push({ date, amount }); continue; }
+      const tq = (toks[ai + 1] || "").match(/^(\d+)\/(\d+)/);
+      const tk = tq && Number(tq[2]) > 1 ? { n: Number(tq[1]), of: Number(tq[2]) } : null;
+      let { cat, note, unknown } = classify(desc, opts.history);
+      let d = date;
+      if (tk) {
+        note += ` (${tk.n}/${tk.of} taksit)`;
+        if (tk.n > 1) {
+          const day = Number(date.slice(8, 10));
+          if (win) { for (const base of [win.from, win.to]) { const [y, mo] = base.split("-").map(Number); const dim = new Date(y, mo, 0).getDate(); const c = `${y}-${pad(mo)}-${pad(Math.min(day, dim))}`; if (c >= win.from && c <= win.to) { d = c; break; } } }
+          else if (docDate) { const [y, mo] = docDate.split("-").map(Number); const dim = new Date(y, mo, 0).getDate(); d = `${y}-${pad(mo)}-${pad(Math.min(day, dim))}`; }
+        }
+      }
+      if (amount < 0) note += " (iade)";
+      items.push({ date: d, card, amount, desc, cat, note: note.slice(0, 80), biz: /SGK|VERGI|V\.D\./.test(fd), unknown: !!unknown });
+    }
+    if (fees.length) items.push({ date: docDate || fees[0].date, card, amount: r2(fees.reduce((s, x) => s + x.amount, 0)), desc: "Faiz", cat: "Diğer", note: `Kart faizi ve vergileri (${bank || card})` });
+    if (!items.length) return { error: "Bu dökümde harcama satırı bulunamadı." };
+    items.sort((a, b) => a.date.localeCompare(b.date));
+    const warnings = ["Bu bir dönem içi hareket dökümü: ekstre henüz kesilmemiş, o yüzden toplam kontrolü yapılamıyor. Ekstre kesilince onu da yükleyebilirsin, burada eklediklerin tekrar girmez."];
+    if (!opts.cards || !opts.cards[last4]) warnings.push(`Kart sonu ${last4 || "?"}: bu kartı “${card}” olarak kaydettim. Ekstresini bir kez yüklediğinde kart adları otomatik eşleşir.`);
+    const unk = items.filter(o => o.unknown).length;
+    if (unk) warnings.push(`${unk} satırın kategorisini satıcı adından çıkaramadım, “Diğer” olarak geldi.`);
+    const plain = items.filter(i => !/taksit\)/.test(i.note)).map(i => i.date).sort();
+    return { bank: bank || "Kart", statementDate: null, period: { from: plain[0] || null, to: docDate }, previousBalance: null, payments: null, statementDebt: null,
+      items: items.map(({ unknown, ...o }) => o), skipped, warnings, digits: last4 ? { [last4]: card } : {}, partial: true, offline: true };
+  }
+
   function parseStatement(pages, opts) {
     opts = opts || {};
     const lines = pages.flat().map(l => String(l).replace(/[\x00-\x08\x0b-\x1f\x7f]/g, ""));
     const text = lines.join("\n");
+    if (/DONEM ICI HAREKETLER/.test(fold(text))) return parseDonemIci(lines, opts);
     const B = detectBank(text);
     const money = B.tr ? MONEY_TR : MONEY_EN;
     const warnings = [], skipped = [];
@@ -114,12 +166,13 @@
     else if (B.card === "Maximiles") { prev = grabAmount(lines, /ONCEKI HESAP OZETI BAKIYENIZ/, true); debt = grabAmount(lines, /HESAP OZETI BORCU/, true); }
 
     // 1) Satırları ham işlemlere çevir
-    const raw = []; let card = B.card, hints = [];
+    const raw = []; let card = B.card, hints = []; const digits = {};
     const lastDesc = [];
     for (let li = 0; li < lines.length; li++) {
       const line = lines[li]; const f = fold(line);
-      if (B.card === "QNB" && /SANAL KART\s*:/.test(f)) card = "QNB Sanal";
-      if (B.card === "QNB" && /ASIL KART\s*:/.test(f)) card = "QNB";
+      if (B.card === "QNB" && /SANAL KART\s*:/.test(f)) { card = "QNB Sanal"; const d4 = f.match(/(\d{4})\b(?!.*\d{4})/); if (d4) digits[d4[1]] = card; }
+      if (B.card === "QNB" && /ASIL KART\s*:/.test(f)) { card = "QNB"; const d4 = f.match(/\*+\s*(\d{4})/); if (d4) digits[d4[1]] = card; }
+      if (B.card !== "QNB") { const d4 = f.match(/KART (?:NO|NUMARASI)\s*:?\s*[\d*\s]*?(\d{4})\s*$/); if (d4) digits[d4[1]] = B.card; }
       const m = line.match(/^\s*(\d{2})[.\/](\d{2})[.\/](\d{4})\s+(.*)$/);
       if (!m) continue;
       const date = iso(m[1], m[2], m[3]);
@@ -217,7 +270,7 @@
       }
       if (d.fx) note += ` (${d.fx})`;
       if (d.notes) note += ` (${d.notes.join(", ")})`;
-      out.push({ date, card: d.card, amount, gross: d.adj ? r2(d.amount) : undefined, desc: d.desc, cat, note: note.slice(0, 80), biz: /SGK|VERGI/.test(fold(d.desc)), unknown: !!unknown });
+      out.push({ date, card: d.card, amount, gross: d.adj ? r2(d.amount) : undefined, desc: d.desc, cat, note: note.slice(0, 80), biz: /SGK|VERGI|V\.D\./.test(fold(d.desc)), unknown: !!unknown });
     }
     // 4) Faiz + vergiler tek kalem
     if (fees.length) {
@@ -232,7 +285,7 @@
     const firstPlain = debits.filter(d => !d.taksit && (!kesim || d.date <= kesim)).map(d => d.date).sort()[0];
     const from = [pFrom, firstPlain].filter(Boolean).sort()[0] || null;
     return { bank: B.bank || "Kart", statementDate: kesim, period: { from, to: kesim }, previousBalance: prev, payments, statementDebt: debt,
-      items: out.map(({ unknown, ...o }) => o), skipped, warnings, offline: true };
+      items: out.map(({ unknown, ...o }) => o), skipped, warnings, digits, offline: true };
   }
 
   root.EkstreOku = { parseStatement, fold, merchantKey, niceName, classify, CATS };
