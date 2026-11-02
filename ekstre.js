@@ -268,7 +268,7 @@
     if (!items.length && !skipped.length) return { error: "Bu hesap dökümünde harcama satırı bulunamadı." };
     items.sort((a, b) => a.date.localeCompare(b.date));
     const warnings = [`Bu bir banka hesabı dökümü. Kendi hesapların arası aktarımlar, kredi kartı borcu ödemeleri ve döviz alımları harcama sayılmadı (aşağıda listelendi). ${inN} gelen para (${incoming.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} TL) alınmadı.`,
-      "Kişilere yapılan ödemeler harcama olarak geldi. Aralarında harcama olmayan (örneğin borç verme, aile içi para) varsa işaretini kaldır."];
+      "Kişilere yapılan havaleler de harcama olarak eklendi; adı belli olmayanlar “Diğer” kategorisinde."];
     return { bank, statementDate: null, period: { from: pr ? iso(pr[1], pr[2], pr[3]) : (items[0] || {}).date, to: pr ? iso(pr[4], pr[5], pr[6]) : null }, previousBalance: null, payments: null, statementDebt: null,
       items, skipped, warnings, digits: {}, partial: true, account: true, offline: true };
   }
@@ -331,7 +331,7 @@
     if (mkk.length) items.push({ date: mkk[mkk.length - 1].date, card, amount: r2(mkk.reduce((s, x) => s + x.amount, 0)), desc: "MKK ücretleri", cat: "Diğer", note: "Yatırım hesabı ücretleri (MKK)" });
     items.sort((a, b) => a.date.localeCompare(b.date));
     const warnings = [`Bu bir banka hesabı dökümü${acct ? " (" + acct + ")" : ""}. Kendi hesapların arası aktarımlar, yatırım alım-satımları, kart borcu ödemeleri ve borç geri ödemeleri harcama sayılmadı (aşağıda listelendi). ${inN} gelen para alınmadı.`,
-      "Kişilere yapılan havaleler harcama olarak geldi. Aralarında harcama olmayan (örneğin borç verme, aile içi para) varsa işaretini kaldır."];
+      "Kişilere yapılan havaleler de harcama olarak eklendi; adı belli olmayanlar “Diğer” kategorisinde."];
     return { bank: "QNB", statementDate: null, period: { from: pr ? iso(pr[1], pr[2], pr[3]) : null, to: pr ? iso(pr[4], pr[5], pr[6]) : null }, previousBalance: null, payments: null, statementDebt: null,
       items, skipped, warnings, digits: {}, partial: true, account: true, offline: true };
   }
