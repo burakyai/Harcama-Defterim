@@ -1,6 +1,6 @@
 // Offline support: serve the app shell from cache, refresh it in the background when online.
 // Install fetches with cache:"reload" so a new version never stores stale copies from the browser's HTTP cache.
-const CACHE = "harcama-v5";
+const CACHE = "harcama-v6";
 const FILES = ["./", "index.html", "manifest.webmanifest", "apple-touch-icon.png", "icon-192.png", "icon-512.png",
   "ekstre.js", "vendor/pdf.min.js", "vendor/pdf.worker.min.js"];
 self.addEventListener("install", e => {

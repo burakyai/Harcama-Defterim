@@ -307,7 +307,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 <div class="sheet" id="ysheet" role="dialog" aria-label="Yedek">
   <div class="grab"></div>
   <div class="sheet-head"><h2>Yedek</h2><button class="x" type="button" id="closeY" aria-label="Kapat">×</button></div>
-  <p class="hint" style="font-size:.78rem">Sürüm 2 Kasım · ekstre okuyucu: VakıfBank, QNB, QNB dönem içi, Maximiles</p>
+  <p class="hint" style="font-size:.78rem">Sürüm 2 Kasım (3) · VakıfBank, QNB, İş Bankası, DenizBank kart ekstreleri; QNB ve İş Bankası hesap dökümleri</p>
   <p class="hint">Kayıtların sadece bu telefonda durur, hiçbir sunucuya gitmez. Telefon değiştirmeden, uygulamayı silmeden ya da Safari verilerini temizlemeden önce yedeği kaydet ve iCloud Drive'a koy.</p>
   <div class="recon" id="yInfo"></div>
   <button class="primary" type="button" id="ySave">Yedeği kaydet</button>
@@ -364,7 +364,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
   <div class="sheet-head"><h2>Ekstre ekle</h2><button class="x" type="button" id="closeI" aria-label="Kapat">×</button></div>
   <label class="drop" id="drop"><input type="file" id="ifile" accept="application/pdf,.pdf,.json,application/json" aria-label="Ekstre PDF'ini seç">
     <span class="big-ico">📄</span><b>Kart ekstresini seç (PDF)</b>
-    <span class="hint">İnternetsiz, telefonda okunur. VakıfBank, QNB ve Maximiles ekstrelerini tanır. Daha önce girdiğin harcamalar ayıklanır, deftere yazmadan önce listeyi sen onaylarsın.</span></label>
+    <span class="hint">İnternetsiz, telefonda okunur. Kart ekstreleri: VakıfBank, QNB, İş Bankası (Maximiles, Maximum), DenizBank. Hesap dökümleri: QNB, İş Bankası. Daha önce girdiğin harcamalar ayıklanır, deftere yazmadan önce listeyi sen onaylarsın.</span></label>
   <div class="err" id="iErr"></div>
   <div class="ires" id="ires" hidden>
     <div class="recon" id="irecon"></div>
@@ -603,7 +603,7 @@ function iReset(){$("ifile").value="";$("ires").hidden=true;$("iErr").textConten
 function iFail(msg){$("iErr").textContent=msg;$("drop").hidden=false;$("ifile").value=""}
 $("impBtn").onclick=()=>{if(!iData)iReset();openSheet("isheet")};
 $("iagain").onclick=iReset;
-const APPV="2026-11-02b";
+const APPV="2026-11-02c";
 function loadLocal(src){return new Promise((res,rej)=>{const s=document.createElement("script");s.src=src;s.onload=res;s.onerror=()=>rej(new Error("load"));document.head.append(s)})}
 let pdfReady=null;
 function ensurePdf(){if(!pdfReady)pdfReady=(async()=>{
