@@ -307,6 +307,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 <div class="sheet" id="ysheet" role="dialog" aria-label="Yedek">
   <div class="grab"></div>
   <div class="sheet-head"><h2>Yedek</h2><button class="x" type="button" id="closeY" aria-label="Kapat">×</button></div>
+  <p class="hint" style="font-size:.78rem">Sürüm 2 Kasım · ekstre okuyucu: VakıfBank, QNB, QNB dönem içi, Maximiles</p>
   <p class="hint">Kayıtların sadece bu telefonda durur, hiçbir sunucuya gitmez. Telefon değiştirmeden, uygulamayı silmeden ya da Safari verilerini temizlemeden önce yedeği kaydet ve iCloud Drive'a koy.</p>
   <div class="recon" id="yInfo"></div>
   <button class="primary" type="button" id="ySave">Yedeği kaydet</button>
@@ -602,10 +603,11 @@ function iReset(){$("ifile").value="";$("ires").hidden=true;$("iErr").textConten
 function iFail(msg){$("iErr").textContent=msg;$("drop").hidden=false;$("ifile").value=""}
 $("impBtn").onclick=()=>{if(!iData)iReset();openSheet("isheet")};
 $("iagain").onclick=iReset;
+const APPV="2026-11-02b";
 function loadLocal(src){return new Promise((res,rej)=>{const s=document.createElement("script");s.src=src;s.onload=res;s.onerror=()=>rej(new Error("load"));document.head.append(s)})}
 let pdfReady=null;
 function ensurePdf(){if(!pdfReady)pdfReady=(async()=>{
-  if(!window.pdfjsLib)await loadLocal("vendor/pdf.min.js");if(!window.EkstreOku)await loadLocal("ekstre.js");
+  if(!window.pdfjsLib)await loadLocal("vendor/pdf.min.js?v="+APPV);if(!window.EkstreOku)await loadLocal("ekstre.js?v="+APPV);
   window.pdfjsLib.GlobalWorkerOptions.workerSrc="vendor/pdf.worker.min.js";return window.pdfjsLib})().catch(e=>{pdfReady=null;throw e});return pdfReady}
 async function pdfPages(lib,file){
   const pdf=await lib.getDocument({data:new Uint8Array(await file.arrayBuffer()),isEvalSupported:false,disableFontFace:true}).promise;const pages=[];
